@@ -29,7 +29,7 @@ export default function EventsPage() {
       const { data, error } = await supabase
         .from('events')
         .select('*')
-        .order('date', { ascending: false });
+        .order('event_date', { ascending: false });
 
       if (error) throw error;
       setEvents(data || []);
@@ -65,19 +65,52 @@ export default function EventsPage() {
     setFilteredEvents(filtered);
   };
 
-  const handleDelete = async (id: string, title: string) => {
+  const handleDelete = async (id: string, title: string, imageUrl?: string) => {
     if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
 
     try {
-      const { error } = await supabase.from('events').delete().eq('id', id);
-      if (error) throw error;
+      // 1. Delete image from storage (if exists)
+      const {data, error} = await supabase
+      .from('events')
+      .select('image_url')
+      .eq('id', id)
+      .single()
+
+      if(error) throw error
+      const imageUrl = data.image_url
+
+      // 2️⃣ Delete from storage if there is a file
+      if(imageUrl){
+        const url = new URL(imageUrl);
+        // remove '/object/audio-files/' prefix if needed
+      const pathIndex = url.pathname.indexOf('/event-image/');
+      const filePath = pathIndex !== -1 ? url.pathname.slice(pathIndex + 13) : null;
+
+      if (filePath) {
+        const { error: storageError } = await supabase.storage
+          .from('event-image')
+          .remove([filePath]);
+
+        if (storageError) throw storageError;
+      }
+      }
+
+      // 2. Delete event row
+      const { error: fetchError } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', id);
+
+      if (fetchError) throw error;
+
       toast.success('Event deleted successfully');
       fetchEvents();
-    } catch (error: any) {
+    } catch (error) {
       toast.error('Failed to delete event');
       console.error(error);
     }
   };
+
 
   const togglePublished = async (id: string, currentStatus: boolean) => {
     try {
@@ -196,7 +229,7 @@ export default function EventsPage() {
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Calendar className="w-4 h-4" />
-                    {new Date(event.date).toLocaleDateString('en-US', {
+                    {new Date(event.event_date).toLocaleDateString('en-US', {
                       weekday: 'long',
                       year: 'numeric',
                       month: 'long',
@@ -204,7 +237,7 @@ export default function EventsPage() {
                     })}
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    ⏰ {event.time}
+                    ⏰ {event.event_time}
                   </div>
                   {event.location && (
                     <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -239,7 +272,7 @@ export default function EventsPage() {
                     <Edit className="w-5 h-5 text-gray-600" />
                   </Link>
                   <button
-                    onClick={() => handleDelete(event.id, event.title)}
+                    onClick={() => handleDelete(event.id, event.title, event.image_url)}
                     className="p-2 hover:bg-red-50 rounded-lg transition"
                     title="Delete"
                   >

@@ -10,6 +10,9 @@ import Link from 'next/link';
 export default function NewEventPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+
+  const [imageFile, setImageFile] = useState<File | null>(null);
+
   const [formData, setFormData] = useState({
     title: '',
     image_url: '',
@@ -22,27 +25,58 @@ export default function NewEventPage() {
     published: false,
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
     const { name, value, type } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
-    });
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox'
+        ? (e.target as HTMLInputElement).checked
+        : value,
+    }));
   };
+
+  /* ---------------- IMAGE UPLOAD LOGIC ---------------- */
+  const uploadImage = async (): Promise<string | null> => {
+    if (!imageFile) return null;
+
+    const ext = imageFile.name.split('.').pop();
+    const fileName = `${Date.now()}.${ext}`;
+    const filePath = `events/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from('event-image')
+      .upload(filePath, imageFile, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (error) throw error;
+
+    const { data } = supabase.storage
+      .from('event-image')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  };
+  /* ---------------------------------------------------- */
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      const imageUrl = await uploadImage();
+
       const { error } = await supabase.from('events').insert({
         title: formData.title,
-        image_url: formData.image_url || null,
+        image_url: imageUrl,
         event_type: formData.event_type,
-        date: formData.date,
-        time: formData.time,
-        location: formData.location || null,
-        about: formData.about || null,
+        event_date: formData.date,
+        event_time: formData.time,
+        location: formData.location,
+        about: formData.about,
         registration_url: formData.registration_url || null,
         published: formData.published,
       });
@@ -77,42 +111,55 @@ export default function NewEventPage() {
       {/* Form */}
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 p-8">
         <div className="space-y-6">
+
           {/* Title */}
           <div>
-            <label htmlFor="title" className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
               Event Title *
             </label>
             <input
               type="text"
-              id="title"
               name="title"
               value={formData.title}
               onChange={handleChange}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              placeholder="e.g., Sunday Worship Service"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary outline-none"
             />
           </div>
 
-          {/* Image URL */}
+          {/* Image */}
           <div>
-            <label htmlFor="image_url" className="block text-sm font-semibold text-gray-700 mb-2">
-              Event Image URL
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Event Image
             </label>
+
             <div className="flex gap-2">
               <input
-                type="url"
-                id="image_url"
-                name="image_url"
-                value={formData.image_url}
-                onChange={handleChange}
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                placeholder="https://example.com/event-image.jpg"
+                type="text"
+                value={imageFile?.name || ''}
+                readOnly
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-xl"
+                placeholder="Upload image"
               />
+
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                id="event-image-input"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    setImageFile(e.target.files[0]);
+                  }
+                }}
+              />
+
               <button
                 type="button"
-                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition flex items-center gap-2"
-                title="Upload image"
+                onClick={() =>
+                  document.getElementById('event-image-input')?.click()
+                }
+                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center gap-2"
               >
                 <Upload className="w-5 h-5" />
               </button>
@@ -121,16 +168,14 @@ export default function NewEventPage() {
 
           {/* Event Type */}
           <div>
-            <label htmlFor="event_type" className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
               Event Type *
             </label>
             <select
-              id="event_type"
               name="event_type"
               value={formData.event_type}
               onChange={handleChange}
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl"
             >
               <option value="live">Live Event</option>
               <option value="audio">Audio Event</option>
@@ -139,115 +184,80 @@ export default function NewEventPage() {
 
           {/* Date & Time */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="date" className="block text-sm font-semibold text-gray-700 mb-2">
-                Event Date *
-              </label>
-              <input
-                type="date"
-                id="date"
-                name="date"
-                value={formData.date}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="time" className="block text-sm font-semibold text-gray-700 mb-2">
-                Event Time *
-              </label>
-              <input
-                type="time"
-                id="time"
-                name="time"
-                value={formData.time}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              />
-            </div>
+            <input
+              type="date"
+              name="date"
+              value={formData.date}
+              onChange={handleChange}
+              required
+              className="px-4 py-3 border border-gray-300 rounded-xl"
+            />
+            <input
+              type="time"
+              name="time"
+              value={formData.time}
+              onChange={handleChange}
+              required
+              className="px-4 py-3 border border-gray-300 rounded-xl"
+            />
           </div>
 
           {/* Location */}
-          <div>
-            <label htmlFor="location" className="block text-sm font-semibold text-gray-700 mb-2">
-              Location
-            </label>
-            <input
-              type="text"
-              id="location"
-              name="location"
-              value={formData.location}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              placeholder="e.g., Main Sanctuary, 123 Faith Street"
-            />
-          </div>
+          <input
+            type="text"
+            name="location"
+            value={formData.location}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl"
+            placeholder="Location"
+          />
 
           {/* About */}
-          <div>
-            <label htmlFor="about" className="block text-sm font-semibold text-gray-700 mb-2">
-              About the Event
-            </label>
-            <textarea
-              id="about"
-              name="about"
-              value={formData.about}
-              onChange={handleChange}
-              rows={5}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
-              placeholder="Describe what attendees can expect..."
-            />
-          </div>
+          <textarea
+            name="about"
+            value={formData.about}
+            onChange={handleChange}
+            placeholder='About Event'
+            rows={5}
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl resize-none"
+          />
 
           {/* Registration URL */}
-          <div>
-            <label htmlFor="registration_url" className="block text-sm font-semibold text-gray-700 mb-2">
-              Registration URL (Optional)
-            </label>
-            <input
-              type="url"
-              id="registration_url"
-              name="registration_url"
-              value={formData.registration_url}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              placeholder="https://example.com/register"
-            />
-            <p className="text-xs text-gray-500 mt-2">
-              Link where users can register or get more information
-            </p>
-          </div>
+          <input
+            type="url"
+            name="registration_url"
+            placeholder='Registeration Link (Optional)'
+            value={formData.registration_url}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl"
+          />
 
-          {/* Published Toggle */}
+          {/* Publish */}
           <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
             <input
               type="checkbox"
-              id="published"
               name="published"
               checked={formData.published}
               onChange={handleChange}
-              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary"
+              className="w-5 h-5"
             />
-            <label htmlFor="published" className="text-sm font-medium text-gray-700">
-              Publish immediately (make visible to app users)
-            </label>
+            <span className="text-sm font-medium text-gray-700">
+              Publish immediately
+            </span>
           </div>
 
-          {/* Submit Buttons */}
-          <div className="flex items-center gap-4 pt-4">
+          {/* Actions */}
+          <div className="flex gap-4">
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 bg-secondary hover:bg-secondary/90 text-white font-semibold py-3 rounded-xl transition disabled:opacity-50"
+              className="flex-1 bg-secondary text-white py-3 rounded-xl font-semibold"
             >
               {isLoading ? 'Creating...' : 'Create Event'}
             </button>
             <Link
               href="/events"
-              className="px-6 py-3 border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 transition"
+              className="px-6 py-3 border rounded-xl font-semibold"
             >
               Cancel
             </Link>
