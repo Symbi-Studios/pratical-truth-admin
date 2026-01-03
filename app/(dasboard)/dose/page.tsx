@@ -3,33 +3,27 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
-import { Calendar, Check, Eye } from 'lucide-react';
+import { Check, Eye } from 'lucide-react';
 
 export default function DailyDosePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [existingDose, setExistingDose] = useState<any>(null);
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
   const [formData, setFormData] = useState({
     title: '',
     scripture: '',
     content: '',
     affirmation: '',
-    prayer_point: '',
-    published: false,
   });
 
   useEffect(() => {
-    fetchDoseForDate(selectedDate);
-  }, [selectedDate]);
+    fetchDoseForDate();
+  }, []);
 
-  const fetchDoseForDate = async (date: string) => {
+  const fetchDoseForDate = async () => {
     try {
       const { data, error } = await supabase
         .from('daily_dose')
         .select('*')
-        .eq('date', date)
         .single();
 
       if (data) {
@@ -39,8 +33,6 @@ export default function DailyDosePage() {
           scripture: data.scripture,
           content: data.content,
           affirmation: data.affirmation || '',
-          prayer_point: data.prayer_point || '',
-          published: data.published,
         });
       } else {
         setExistingDose(null);
@@ -49,8 +41,6 @@ export default function DailyDosePage() {
           scripture: '',
           content: '',
           affirmation: '',
-          prayer_point: '',
-          published: false,
         });
       }
     } catch (error) {
@@ -80,8 +70,6 @@ export default function DailyDosePage() {
             scripture: formData.scripture,
             content: formData.content,
             affirmation: formData.affirmation || null,
-            prayer_point: formData.prayer_point || null,
-            published: formData.published,
           })
           .eq('id', existingDose.id);
 
@@ -94,16 +82,13 @@ export default function DailyDosePage() {
           scripture: formData.scripture,
           content: formData.content,
           affirmation: formData.affirmation || null,
-          prayer_point: formData.prayer_point || null,
-          date: selectedDate,
-          published: formData.published,
         });
 
         if (error) throw error;
         toast.success('Daily dose created successfully!');
       }
 
-      fetchDoseForDate(selectedDate);
+      fetchDoseForDate();
     } catch (error: any) {
       toast.error(error.message || 'Failed to save daily dose');
       console.error(error);
@@ -131,8 +116,6 @@ export default function DailyDosePage() {
         scripture: '',
         content: '',
         affirmation: '',
-        prayer_point: '',
-        published: false,
       });
     } catch (error: any) {
       toast.error('Failed to delete daily dose');
@@ -148,31 +131,6 @@ export default function DailyDosePage() {
         <p className="text-gray-600 mt-1">
           Create or edit the daily devotional content
         </p>
-      </div>
-
-      {/* Date Selector */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-200">
-        <label htmlFor="date" className="block text-sm font-semibold text-gray-700 mb-2">
-          Select Date
-        </label>
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="date"
-              id="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-            />
-          </div>
-          {existingDose && (
-            <div className="flex items-center gap-2 px-4 py-3 bg-green-50 text-green-700 rounded-xl font-semibold">
-              <Check className="w-5 h-5" />
-              Exists
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Form */}
@@ -248,37 +206,6 @@ export default function DailyDosePage() {
             />
           </div>
 
-          {/* Prayer Point */}
-          <div>
-            <label htmlFor="prayer_point" className="block text-sm font-semibold text-gray-700 mb-2">
-              Prayer Point
-            </label>
-            <textarea
-              id="prayer_point"
-              name="prayer_point"
-              value={formData.prayer_point}
-              onChange={handleChange}
-              rows={3}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
-              placeholder="Prayer focus for the reader..."
-            />
-          </div>
-
-          {/* Published Toggle */}
-          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-            <input
-              type="checkbox"
-              id="published"
-              name="published"
-              checked={formData.published}
-              onChange={handleChange}
-              className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary"
-            />
-            <label htmlFor="published" className="text-sm font-medium text-gray-700">
-              Publish (make visible to app users)
-            </label>
-          </div>
-
           {/* Action Buttons */}
           <div className="flex items-center gap-4 pt-4">
             <button
@@ -315,7 +242,7 @@ export default function DailyDosePage() {
 
       {/* Preview Card */}
       {formData.title && (
-        <div className="bg-linear-to-br from-primary/10 to-secondary/10 rounded-2xl p-8 border-2 border-primary/30">
+        <div className="from-primary/10 to-secondary/10 rounded-2xl p-8 border-2 border-primary/30">
           <div className="flex items-center gap-2 mb-4">
             <Eye className="w-5 h-5 text-gray-600" />
             <h3 className="text-lg font-bold text-gray-900">Preview</h3>
@@ -329,13 +256,6 @@ export default function DailyDosePage() {
             {formData.affirmation && (
               <div className="bg-primary/10 rounded-lg p-4">
                 <p className="font-semibold text-gray-900">✨ {formData.affirmation}</p>
-              </div>
-            )}
-            {formData.prayer_point && (
-              <div className="bg-secondary/10 rounded-lg p-4">
-                <p className="text-sm text-gray-700">
-                  <span className="font-semibold">🙏 Prayer:</span> {formData.prayer_point}
-                </p>
               </div>
             )}
           </div>

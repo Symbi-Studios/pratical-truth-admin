@@ -264,13 +264,13 @@ export default function EventsPage() {
                       <Eye className="w-5 h-5 text-gray-600" />
                     )}
                   </button>
-                  <Link
+                  {/* <Link
                     href={`/events/${event.id}`}
                     className="p-2 hover:bg-gray-100 rounded-lg transition"
                     title="Edit"
                   >
                     <Edit className="w-5 h-5 text-gray-600" />
-                  </Link>
+                  </Link> */}
                   <button
                     onClick={() => handleDelete(event.id, event.title, event.image_url)}
                     className="p-2 hover:bg-red-50 rounded-lg transition"
