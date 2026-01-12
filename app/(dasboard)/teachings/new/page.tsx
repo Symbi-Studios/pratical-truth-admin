@@ -136,6 +136,17 @@ export default function NewTeachingPage() {
     }
   };
 
+  const handleAddCategory = async () => {
+    const check = categories.some(cat => cat === newCategory)
+    if(check){
+      alert('Category already exist')
+    }else{
+      setCategories([...categories, newCategory])
+      setNewCategory('')
+    }
+    
+  }
+
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -235,7 +246,7 @@ export default function NewTeachingPage() {
               Category
             </label>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               <select
                 name="category"
                 value={formData.category}
@@ -258,6 +269,11 @@ export default function NewTeachingPage() {
                 onChange={(e) => setNewCategory(e.target.value)}
                 className="px-4 py-3 border border-gray-300 rounded-xl flex-1"
               />
+              <div
+               onClick={handleAddCategory}
+               className='bg-secondary justify-center items-center'>
+                <p className='px-4 py-2 text-white'>Add</p>
+              </div>
             </div>
           </div>
 
