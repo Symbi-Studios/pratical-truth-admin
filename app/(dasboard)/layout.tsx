@@ -10,11 +10,11 @@ import {
   Mic,
   Calendar,
   Book,
+  Megaphone,
   LogOut,
   Menu,
   X
 } from 'lucide-react';
-import Image from 'next/image';
 
 export default function DashboardLayout({
   children,
@@ -40,7 +40,6 @@ export default function DashboardLayout({
         return;
       }
 
-      // Check if admin
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
@@ -72,7 +71,8 @@ export default function DashboardLayout({
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Teachings', href: '/teachings', icon: Mic },
     { name: 'Events', href: '/events', icon: Calendar },
-    { name: 'Daily Dose', href: '/dose', icon: Book },
+    { name: 'Daily Devotional', href: '/dose', icon: Book },
+    { name: 'Announcements', href: '/announcements', icon: Megaphone },
   ];
 
   if (isLoading) {
@@ -105,9 +105,11 @@ export default function DashboardLayout({
         {/* Logo */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            
+            <div className="w-12 h-12 bg-linear-to-br from-primary to-secondary rounded-xl flex items-center justify-center">
+              <span className="text-xl font-bold text-overlay">PT</span>
+            </div>
             <div>
-              <Image src={'/Practical-Truths.png'} alt='logo' width={100} height={100} className='mx-auto mb-4' />
+              <h2 className="font-bold text-gray-900">Practical Truths</h2>
               <p className="text-xs text-gray-500">Admin Panel</p>
             </div>
           </div>
