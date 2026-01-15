@@ -34,7 +34,7 @@ export default function TeachingsPage() {
       setAnnouncements(data || []);
     } catch (error: any) {
       toast.error('Failed to load audios');
-      console.error(error);
+      console.error(error); 
     } finally {
       setIsLoading(false);
     }
