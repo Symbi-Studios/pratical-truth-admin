@@ -156,7 +156,7 @@ export default function DailyDosePage() {
           {/* Scripture */}
           <div>
             <label htmlFor="scripture" className="block text-sm font-semibold text-gray-700 mb-2">
-              Scripture Verse *
+              Today's Word *
             </label>
             <textarea
               id="scripture"
@@ -173,7 +173,7 @@ export default function DailyDosePage() {
           {/* Content */}
           <div>
             <label htmlFor="content" className="block text-sm font-semibold text-gray-700 mb-2">
-              Devotional Content *
+              Truth *
             </label>
             <textarea
               id="content"
@@ -193,7 +193,7 @@ export default function DailyDosePage() {
           {/* Affirmation */}
           <div>
             <label htmlFor="affirmation" className="block text-sm font-semibold text-gray-700 mb-2">
-              Affirmation
+              Today's Task
             </label>
             <input
               type="text"
