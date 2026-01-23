@@ -153,14 +153,10 @@ export default function DashboardPage() {
                 ? 'text-green-600 bg-green-50' 
                 : 'text-orange-600 bg-orange-50'
             }`}>
-              {stats.todaysDose ? 'Published' : 'Missing'}
             </span>
           </div>
           <h3 className="text-2xl font-bold text-gray-900">{stats.totalDoses}</h3>
           <p className="text-sm text-gray-600 mt-1">Daily Doses</p>
-          <div className="mt-4 flex items-center text-xs text-gray-500">
-            Today: {stats.todaysDose ? '✅ Published' : '⚠️ Not set'}
-          </div>
         </div>
 
         {/* Quick Actions */}
