@@ -309,6 +309,14 @@ export default function EditTeachingPage() {
             className="w-full px-4 py-3 border border-gray-300 rounded-xl"
           />
 
+          <input
+            type="time"
+            name="duration_minutes"
+            value={formData.duration_minutes}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl"
+          />
+
           {/* Speakers */}
           <input
             type="text"

@@ -278,7 +278,7 @@ export default function NewTeachingPage() {
           </div>
 
 
-          {/* Event Date */}
+          {/* Teachings Date and Time */}
           <input
             type="date"
             name="event_date"
@@ -286,6 +286,15 @@ export default function NewTeachingPage() {
             onChange={handleChange}
             className="w-full px-4 py-3 border border-gray-300 rounded-xl"
           />
+
+          <input
+              type="time"
+              name="duration_minutes"
+              value={formData.duration_minutes}
+              onChange={handleChange}
+              required
+              className="px-4 py-3 border border-gray-300 rounded-xl"
+            />
 
           {/* Speakers */}
           <input
