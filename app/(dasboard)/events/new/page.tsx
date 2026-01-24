@@ -203,7 +203,8 @@ export default function NewEventPage() {
           </div>
 
           {/* Location */}
-          <input
+          {formData.event_type === 'live' && (
+            <input
             type="text"
             name="location"
             value={formData.location}
@@ -211,6 +212,8 @@ export default function NewEventPage() {
             className="w-full px-4 py-3 border border-gray-300 rounded-xl"
             placeholder="Location"
           />
+          )}
+          
 
           {/* About */}
           <textarea
