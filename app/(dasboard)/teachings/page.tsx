@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Plus, Search, Edit, Trash2, Play, Eye, EyeOff } from 'lucide-react';
+import { formatDuration } from '@/helper/formatDuration';
 
 export default function TeachingsPage() {
   const router = useRouter();
@@ -238,9 +239,9 @@ export default function TeachingsPage() {
                           📁 {audio.category}
                         </span>
                       )}
-                      {audio.duration_minutes && (
+                      {audio.duration_seconds && (
                         <span className="flex items-center gap-1">
-                          ⏱️ {audio.duration_minutes} min
+                          ⏱️ {formatDuration(audio.duration_seconds)}
                         </span>
                       )}
                       {audio.event_date && (
