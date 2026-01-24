@@ -19,7 +19,7 @@ export default function NewTeachingPage() {
     description: '',
     audio_url: '',
     category: '',
-    duration_minutes: '',
+    duration: '',
     event_date: '',
     speakers: '',
     published: false,
@@ -111,14 +111,29 @@ export default function NewTeachingPage() {
 
         console.log(formData)
 
+        let durationSeconds: number | null = null;
+
+        if (formData.duration) {
+          const match = formData.duration.match(/^(\d+):([0-5]\d)$/);
+
+          if (!match) {
+            toast.error('Duration must be in mm:ss format');
+            setIsLoading(false);
+            return;
+          }
+
+          const minutes = parseInt(match[1]);
+          const seconds = parseInt(match[2]);
+
+          durationSeconds = (minutes * 60) + seconds;
+        }
+
       const { error } = await supabase.from('audios').insert({
         title: formData.title.trim(),
         description: formData.description,
         audio_url: audioUrl || formData.audio_url,
         category: categoryToSave || null,
-        duration_minutes: formData.duration_minutes
-          ? parseInt(formData.duration_minutes)
-          : null,
+        duration_seconds: durationSeconds,
         event_date: formData.event_date || null,
         speakers: speakersArray,
         published: formData.published,
@@ -288,13 +303,27 @@ export default function NewTeachingPage() {
           />
 
           <input
-              type="time"
-              name="duration_minutes"
-              value={formData.duration_minutes}
-              onChange={handleChange}
-              required
-              className="px-4 py-3 border border-gray-300 rounded-xl"
-            />
+            type="text"
+            name="duration"
+            placeholder="mm:ss (e.g. 05:30)"
+            value={formData.duration}
+            required
+            onChange={(e) => {
+              let value = e.target.value.replace(/[^0-9:]/g, '');
+
+              // Auto insert colon after 2 digits
+              if (value.length === 2 && !value.includes(':')) {
+                value = value + ':';
+              }
+
+              // Prevent more than mm:ss
+              if (value.length > 5) return;
+
+              setFormData(prev => ({ ...prev, duration: value }));
+            }}
+            className="px-4 py-3 border border-gray-300 rounded-xl"
+          />
+
 
           {/* Speakers */}
           <input

@@ -23,7 +23,7 @@ export default function EditTeachingPage() {
     description: '',
     audio_url: '',
     category: '',
-    duration_minutes: '',
+    duration: '',
     event_date: '',
     speakers: '',
     published: false,
@@ -49,12 +49,13 @@ export default function EditTeachingPage() {
 
       if (error) throw error;
 
+
       setFormData({
         title: data.title || '',
         description: data.description || '',
         audio_url: data.audio_url || '',
         category: data.category || '',
-        duration_minutes: data.duration_minutes?.toString() || '',
+        duration: data.duration_seconds || '',
         event_date: data.event_date || '',
         speakers: data.speakers?.join(', ') || '',
         published: data.published || false,
@@ -150,6 +151,23 @@ export default function EditTeachingPage() {
         ? formData.speakers.split(',').map(s => s.trim()).filter(Boolean)
         : [];
 
+        let durationSeconds: number | null = null;
+
+        if (formData.duration) {
+          const match = formData.duration.match(/^(\d+):([0-5]\d)$/);
+
+          if (!match) {
+            toast.error('Duration must be in mm:ss format');
+            setIsLoading(false);
+            return;
+          }
+
+          const minutes = parseInt(match[1]);
+          const seconds = parseInt(match[2]);
+
+          durationSeconds = (minutes * 60) + seconds;
+        }
+
       const { error } = await supabase
         .from('audios')
         .update({
@@ -157,9 +175,7 @@ export default function EditTeachingPage() {
           description: formData.description,
           audio_url: finalAudioUrl,
           category: categoryToSave,
-          duration_minutes: formData.duration_minutes
-            ? parseInt(formData.duration_minutes)
-            : null,
+          duration_seconds: durationSeconds,
           event_date: formData.event_date || null,
           speakers: speakersArray,
           published: formData.published,
@@ -309,12 +325,26 @@ export default function EditTeachingPage() {
             className="w-full px-4 py-3 border border-gray-300 rounded-xl"
           />
 
-          <input
-            type="time"
-            name="duration_minutes"
-            value={formData.duration_minutes}
-            onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl"
+           <input
+            type="text"
+            name="duration"
+            placeholder="mm:ss (e.g. 05:30)"
+            value={formData.duration}
+            required
+            onChange={(e) => {
+              let value = e.target.value.replace(/[^0-9:]/g, '');
+
+              // Auto insert colon after 2 digits
+              if (value.length === 2 && !value.includes(':')) {
+                value = value + ':';
+              }
+
+              // Prevent more than mm:ss
+              if (value.length > 5) return;
+
+              setFormData(prev => ({ ...prev, duration: value }));
+            }}
+            className="px-4 py-3 border border-gray-300 rounded-xl"
           />
 
           {/* Speakers */}
