@@ -26,6 +26,7 @@ export default function TeachingsPage() {
   }, [searchQuery, filterCategory, filterStatus, audios]);
 
   const fetchAudios = async () => {
+    setIsLoading(true)
     try {
       const { data, error } = await supabase
         .from('audios')
@@ -109,7 +110,7 @@ export default function TeachingsPage() {
     if (error) throw error;
 
     toast.success('Audio deleted successfully');
-    fetchAudios();
+    await fetchAudios();
   } catch (error: any) {
     toast.error(error.message || 'Failed to delete audio');
     console.error(error);
