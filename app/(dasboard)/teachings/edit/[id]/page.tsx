@@ -111,6 +111,16 @@ export default function EditTeachingPage() {
 
   /* -------------------------------- Submit -------------------------------- */
 
+  const getStoragePathFromUrl = (url: string) => {
+  try {
+    const parts = url.split('/storage/v1/object/public/audio-files/');
+    return parts[1] || null;
+  } catch {
+    return null;
+  }
+};
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -127,25 +137,45 @@ export default function EditTeachingPage() {
 
       // Upload new audio if selected
       if (audioFile) {
-        const ext = audioFile.name.split('.').pop();
-        const fileName = `${crypto.randomUUID()}.${ext}`;
-        const filePath = `teachings/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('audio-files')
-          .upload(filePath, audioFile, {
-            cacheControl: '3600',
-            upsert: false,
-          });
+  // 1️⃣ Delete old audio first
+  if (formData.audio_url) {
+    const oldPath = getStoragePathFromUrl(formData.audio_url);
 
-        if (uploadError) throw uploadError;
+    if (oldPath) {
+      const { error: deleteError } = await supabase.storage
+        .from('audio-files')
+        .remove([oldPath]);
 
-        const { data } = supabase.storage
-          .from('audio-files')
-          .getPublicUrl(filePath);
-
-        finalAudioUrl = data.publicUrl;
+      if (deleteError) {
+        console.error('Failed to delete old audio:', deleteError);
+        toast.error('Could not remove old audio');
+        setIsLoading(false);
+        return;
       }
+    }
+  }
+
+  // 2️⃣ Upload new audio
+  const ext = audioFile.name.split('.').pop();
+  const fileName = `${crypto.randomUUID()}.${ext}`;
+  const filePath = `teachings/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('audio-files')
+    .upload(filePath, audioFile, {
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage
+    .from('audio-files')
+    .getPublicUrl(filePath);
+
+  finalAudioUrl = data.publicUrl;
+}
 
       const speakersArray = formData.speakers
         ? formData.speakers.split(',').map(s => s.trim()).filter(Boolean)
