@@ -42,7 +42,7 @@ export default function DashboardPage() {
       const { count: upcomingEvents } = await supabase
         .from('events')
         .select('*', { count: 'exact', head: true })
-        .gte('date', new Date().toISOString().split('T')[0]);
+        .gte('event_date', new Date().toISOString().split('T')[0]);
 
       // Fetch daily dose stats
       const { count: totalDoses } = await supabase
@@ -66,8 +66,8 @@ export default function DashboardPage() {
       const { data: events } = await supabase
         .from('events')
         .select('*')
-        .gte('date', new Date().toISOString().split('T')[0])
-        .order('date', { ascending: true })
+        .gte('event_date', new Date().toISOString().split('T')[0])
+        .order('event_date', { ascending: true })
         .limit(5);
 
       setStats({
@@ -245,7 +245,7 @@ export default function DashboardPage() {
               View All
             </Link>
           </div>
-          <div className="space-y-3">
+          <div className="gap-3">
             {upcomingEvents.length > 0 ? (
               upcomingEvents.map((event) => (
                 <Link
@@ -258,7 +258,7 @@ export default function DashboardPage() {
                       {event.title}
                     </h4>
                     <p className="text-xs text-gray-500 mt-1">
-                      {new Date(event.date).toLocaleDateString()} • {event.time}
+                      {new Date(event.event_date).toLocaleDateString()} • {event.event_time}
                     </p>
                   </div>
                   <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-600">

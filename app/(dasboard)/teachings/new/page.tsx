@@ -60,96 +60,103 @@ export default function NewTeachingPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  e.preventDefault();
+  setIsLoading(true);
 
-    let categoryToSave = formData.category;
-    if (newCategory.trim()) {
-      categoryToSave = newCategory.trim();
-    }
+  let categoryToSave = formData.category;
+  if (newCategory.trim()) {
+    categoryToSave = newCategory.trim();
+  }
 
-    try {
-      let audioUrl: string | null = null;
-
-      if (!formData.title.trim()) {
-        toast.error('Title is required');
-        setIsLoading(false);
-        return;
-      }
-
-      if (!audioFile && !formData.audio_url.trim()) {
-        toast.error('Audio file or audio URL is required');
-        setIsLoading(false);
-        return;
-      }
-
-      // 🔹 Upload audio if selected
-      if (audioFile) {
-        const ext = audioFile.name.split('.').pop();
-        const fileName = `${crypto.randomUUID()}.${ext}`;
-        const filePath = `teachings${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('audio-files')
-          .upload(filePath, audioFile, {
-            cacheControl: '3600',
-            upsert: false,
-          });
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage
-          .from('audio-files')
-          .getPublicUrl(filePath);
-
-        audioUrl = data.publicUrl;
-      }
-
-      const speakersArray = formData.speakers
-        ? formData.speakers.split(',').map(s => s.trim()).filter(Boolean)
-        : [];
-
-        console.log(formData)
-
-        let durationSeconds: number | null = null;
-
-        if (formData.duration) {
-          const match = formData.duration.match(/^(\d+):([0-5]\d)$/);
-
-          if (!match) {
-            toast.error('Duration must be in mm:ss format');
-            setIsLoading(false);
-            return;
-          }
-
-          const minutes = parseInt(match[1]);
-          const seconds = parseInt(match[2]);
-
-          durationSeconds = (minutes * 60) + seconds;
-        }
-
-      const { error } = await supabase.from('audios').insert({
-        title: formData.title.trim(),
-        description: formData.description,
-        audio_url: audioUrl || formData.audio_url,
-        category: categoryToSave || null,
-        duration_seconds: durationSeconds,
-        event_date: formData.event_date || null,
-        speakers: speakersArray,
-        published: formData.published,
-      });
-
-      if (error) throw error;
-
-      toast.success('Audio created successfully!');
-      router.push('/teachings');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create audio');
-      console.error(error);
-    } finally {
+  try {
+    // Basic validations
+    if (!formData.title.trim()) {
+      toast.error('Title is required');
       setIsLoading(false);
+      return;
     }
-  };
+
+    if (!audioFile && !formData.audio_url.trim()) {
+      toast.error('Audio file or audio URL is required');
+      setIsLoading(false);
+      return;
+    }
+
+    // Upload audio if selected
+    let audioUrl: string | null = null;
+    if (audioFile) {
+      const ext = audioFile.name.split('.').pop();
+      const fileName = (crypto?.randomUUID?.() || Date.now().toString()) + `.${ext}`;
+      const filePath = `teachings/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('audio-files')
+        .upload(filePath, audioFile, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error('Upload Error:', uploadError);
+        toast.error('Failed to upload audio');
+        setIsLoading(false);
+        return;
+      }
+
+      const { data } = supabase.storage
+        .from('audio-files')
+        .getPublicUrl(filePath);
+
+      audioUrl = data.publicUrl;
+    }
+
+    // Parse speakers
+    const speakersArray = formData.speakers
+      ? formData.speakers.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+
+    // Parse duration safely
+    let durationSeconds: number | null = null;
+    if (formData.duration) {
+      const [min, sec] = formData.duration.split(':');
+      if (!min || !sec || isNaN(Number(min)) || isNaN(Number(sec))) {
+        toast.error('Duration must be in mm:ss format');
+        setIsLoading(false);
+        return;
+      }
+      durationSeconds = parseInt(min) * 60 + parseInt(sec.padStart(2, '0'));
+    }
+
+    // Insert into Supabase
+    const { error } = await supabase.from('audios').insert({
+      title: formData.title.trim(),
+      description: formData.description,
+      audio_url: audioUrl || formData.audio_url,
+      category: categoryToSave || null,
+      duration_seconds: durationSeconds,
+      event_date: formData.event_date || null,
+      speakers: speakersArray,
+      published: formData.published,
+    });
+
+    if (error) {
+      console.error('Insert Error:', error);
+      toast.error('Failed to create audio');
+      setIsLoading(false);
+      return;
+    }
+
+    toast.success('Audio created successfully!');
+    router.push('/teachings');
+
+  } catch (err: any) {
+    console.error('Unexpected Error:', err);
+    toast.error(err.message || 'An unexpected error occurred');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const handleAddCategory = async () => {
     const check = categories.some(cat => cat === newCategory)
