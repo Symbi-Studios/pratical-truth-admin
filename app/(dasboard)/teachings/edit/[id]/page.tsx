@@ -3,9 +3,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import toast from 'react-hot-toast';
-import { ArrowLeft, Upload } from 'lucide-react';
+import toast, { Toaster } from 'react-hot-toast';
+import { ArrowLeft, Upload, FileAudio } from 'lucide-react';
 import Link from 'next/link';
+
+// Helper to convert seconds (e.g. 300) to "05:00"
+const formatSecondsToMMSS = (seconds: number) => {
+  if (!seconds && seconds !== 0) return '';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
 
 export default function EditTeachingPage() {
   const router = useRouter();
@@ -17,13 +25,16 @@ export default function EditTeachingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  
+  // State for the specific red error text below the input
+  const [durationError, setDurationError] = useState('');
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     audio_url: '',
     category: '',
-    duration: '',
+    duration: '', // Stores string "mm:ss"
     event_date: '',
     speakers: '',
     published: false,
@@ -32,7 +43,7 @@ export default function EditTeachingPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState('');
 
-  /* -------------------------------- Fetch teaching -------------------------------- */
+  /* -------------------------------- Fetch Data -------------------------------- */
 
   useEffect(() => {
     if (id) fetchTeaching();
@@ -49,13 +60,13 @@ export default function EditTeachingPage() {
 
       if (error) throw error;
 
-
       setFormData({
         title: data.title || '',
         description: data.description || '',
         audio_url: data.audio_url || '',
         category: data.category || '',
-        duration: data.duration_seconds || '',
+        // Convert the database seconds back to mm:ss string for the input
+        duration: formatSecondsToMMSS(data.duration_seconds),
         event_date: data.event_date || '',
         speakers: data.speakers?.join(', ') || '',
         published: data.published || false,
@@ -76,7 +87,7 @@ export default function EditTeachingPage() {
       .not('category', 'is', null);
 
     if (data) {
-      const unique = Array.from(new Set(data.map(a => a.category)));
+      const unique = Array.from(new Set(data.map((a) => a.category)));
       setCategories(unique as string[]);
     }
   };
@@ -87,42 +98,70 @@ export default function EditTeachingPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]:
-        type === 'checkbox'
-          ? (e.target as HTMLInputElement).checked
-          : value,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     }));
+  };
+
+  // Specific handler for Duration to manage masking and error state
+  const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/[^0-9:]/g, '');
+
+    // Auto insert colon after 2 digits if user is typing
+    if (value.length === 2 && !value.includes(':')) {
+      value = value + ':';
+    }
+
+    // Limit length to 5 chars (mm:ss)
+    if (value.length > 5) return;
+
+    setFormData((prev) => ({ ...prev, duration: value }));
+
+    // Real-time validation
+    const regex = /^(\d+):([0-5]\d)$/;
+    if (value === '') {
+      setDurationError('');
+    } else if (!regex.test(value)) {
+      setDurationError('Format must be mm:ss (e.g. 05:30)');
+    } else {
+      setDurationError('');
+    }
   };
 
   const handleAddCategory = () => {
     if (!newCategory.trim()) return;
 
-    const check = categories.some(cat => cat === newCategory.trim());
+    const check = categories.some((cat) => cat === newCategory.trim());
     if (check) {
-      alert('Category already exists');
+      toast.error('Category already exists');
     } else {
       setCategories([...categories, newCategory.trim()]);
-      setFormData(prev => ({ ...prev, category: newCategory.trim() }));
+      setFormData((prev) => ({ ...prev, category: newCategory.trim() }));
       setNewCategory('');
+    }
+  };
+
+  const getStoragePathFromUrl = (url: string) => {
+    try {
+      const parts = url.split('/storage/v1/object/public/audio-files/');
+      return parts[1] || null;
+    } catch {
+      return null;
     }
   };
 
   /* -------------------------------- Submit -------------------------------- */
 
-  const getStoragePathFromUrl = (url: string) => {
-  try {
-    const parts = url.split('/storage/v1/object/public/audio-files/');
-    return parts[1] || null;
-  } catch {
-    return null;
-  }
-};
-
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 1. Block submit if visual error exists
+    if (durationError) {
+      toast.error('Please fix the duration format');
+      return;
+    }
+
     setIsLoading(true);
 
     let finalAudioUrl = formData.audio_url;
@@ -135,68 +174,59 @@ export default function EditTeachingPage() {
         return;
       }
 
-      // Upload new audio if selected
-      if (audioFile) {
+      // 2. Duration Logic: Convert String to Seconds
+      let durationSeconds: number | null = null;
 
-  // 1️⃣ Delete old audio first
-  if (formData.audio_url) {
-    const oldPath = getStoragePathFromUrl(formData.audio_url);
+      if (formData.duration) {
+        const regex = /^(\d+):([0-5]\d)$/;
+        const match = formData.duration.match(regex);
 
-    if (oldPath) {
-      const { error: deleteError } = await supabase.storage
-        .from('audio-files')
-        .remove([oldPath]);
+        if (!match) {
+          toast.error('Invalid Duration! Use mm:ss format (e.g. 05:30)');
+          setIsLoading(false);
+          return;
+        }
 
-      if (deleteError) {
-        console.error('Failed to delete old audio:', deleteError);
-        toast.error('Could not remove old audio');
+        const minutes = parseInt(match[1]);
+        const seconds = parseInt(match[2]);
+        durationSeconds = minutes * 60 + seconds;
+      } else {
+        toast.error('Duration is required');
         setIsLoading(false);
         return;
       }
-    }
-  }
 
-  // 2️⃣ Upload new audio
-  const ext = audioFile.name.split('.').pop();
-  const fileName = `${crypto.randomUUID()}.${ext}`;
-  const filePath = `teachings/${fileName}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from('audio-files')
-    .upload(filePath, audioFile, {
-      cacheControl: '3600',
-      upsert: false,
-    });
-
-  if (uploadError) throw uploadError;
-
-  const { data } = supabase.storage
-    .from('audio-files')
-    .getPublicUrl(filePath);
-
-  finalAudioUrl = data.publicUrl;
-}
-
-      const speakersArray = formData.speakers
-        ? formData.speakers.split(',').map(s => s.trim()).filter(Boolean)
-        : [];
-
-        let durationSeconds: number | null = null;
-
-        if (formData.duration) {
-          const match = formData.duration.match(/^(\d+):([0-5]\d)$/);
-
-          if (!match) {
-            toast.error('Duration must be in mm:ss format');
-            setIsLoading(false);
-            return;
+      // 3. Audio File Upload
+      if (audioFile) {
+        // Delete old audio first if it exists
+        if (formData.audio_url) {
+          const oldPath = getStoragePathFromUrl(formData.audio_url);
+          if (oldPath) {
+            await supabase.storage.from('audio-files').remove([oldPath]);
           }
-
-          const minutes = parseInt(match[1]);
-          const seconds = parseInt(match[2]);
-
-          durationSeconds = (minutes * 60) + seconds;
         }
+
+        const ext = audioFile.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${ext}`;
+        const filePath = `teachings/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('audio-files')
+          .upload(filePath, audioFile, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage.from('audio-files').getPublicUrl(filePath);
+        finalAudioUrl = data.publicUrl;
+      }
+
+      // 4. Update Database
+      const speakersArray = formData.speakers
+        ? formData.speakers.split(',').map((s) => s.trim()).filter(Boolean)
+        : [];
 
       const { error } = await supabase
         .from('audios')
@@ -224,75 +254,86 @@ export default function EditTeachingPage() {
     }
   };
 
-  /* -------------------------------- Loading -------------------------------- */
+  /* -------------------------------- UI Render -------------------------------- */
 
   if (pageLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
-  /* -------------------------------- UI -------------------------------- */
-
   return (
     <div className="max-w-4xl mx-auto">
+      <Toaster position="top-right" />
+      
       {/* Header */}
       <div className="mb-8">
         <Link
           href="/teachings"
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Teachings
         </Link>
-        <h1 className="text-3xl font-bold text-gray-900">Edit Teachings</h1>
-        <p className="text-gray-600 mt-1">Update teaching content</p>
+        <h1 className="text-3xl font-bold text-gray-900">Edit Teaching</h1>
+        <p className="text-gray-600 mt-1">Update teaching content and details</p>
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 p-8">
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
         <div className="space-y-6">
-
+          
           {/* Title */}
-          <input
-            type="text"
-            name="title"
-            value={formData.title}
-            onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl"
-            placeholder="Title"
-            required
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <input
+              type="text"
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              placeholder="e.g. Walking in Spirit"
+              required
+            />
+          </div>
 
           {/* Description */}
-          <textarea
-            name="description"
-            rows={4}
-            value={formData.description}
-            onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl resize-none"
-            placeholder="Description"
-          />
-
-          {/* Audio */}
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              name="description"
+              rows={4}
+              value={formData.description}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              placeholder="Enter a brief description..."
+            />
+          </div>
+
+          {/* Audio File Section */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Audio File</label>
             <div className="flex gap-2">
-              <input
-                type="url"
-                name="audio_url"
-                value={formData.audio_url}
-                onChange={handleChange}
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-xl"
-              />
+              <div className="flex-1 relative">
+                <input
+                  type="url"
+                  name="audio_url"
+                  value={formData.audio_url}
+                  readOnly
+                  className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-xl bg-gray-50 text-gray-500"
+                />
+                <FileAudio className="w-5 h-5 text-gray-400 absolute left-3 top-3.5" />
+              </div>
 
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center gap-2"
+                className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl flex items-center gap-2 transition-colors"
               >
                 <Upload className="w-5 h-5" />
+                {audioFile ? 'Change File' : 'Replace Audio'}
               </button>
             </div>
 
@@ -304,118 +345,135 @@ export default function EditTeachingPage() {
               onChange={(e) => {
                 if (e.target.files?.[0]) {
                   setAudioFile(e.target.files[0]);
-                  toast.success('New audio selected');
+                  toast.success('New audio file selected');
                 }
               }}
             />
 
             {audioFile && (
-              <p className="text-xs text-gray-500 mt-2">
-                New file: {audioFile.name}
+              <p className="text-sm text-green-600 mt-2 font-medium">
+                New file selected: {audioFile.name}
               </p>
             )}
           </div>
 
-          {/* Category */}
-          <div className="flex gap-2">
-            <select
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-xl"
-            >
-              <option value="">Select category</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+          {/* Category Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <div className="flex gap-2">
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleChange}
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-secondary focus:border- outline-none"
+              >
+                <option value="">Select category</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
 
-            <input
-              type="text"
-              placeholder="Add new"
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              className="px-4 py-3 border border-gray-300 rounded-xl flex-1"
-            />
+              <input
+                type="text"
+                placeholder="New Category"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                className="px-4 py-3 border border-gray-300 rounded-xl flex-1 outline-none"
+              />
 
-            <div
-              onClick={handleAddCategory}
-              className="bg-secondary flex items-center justify-center cursor-pointer rounded-xl"
-            >
-              <p className="px-4 py-2 text-white">Add</p>
+              <button
+                type="button"
+                onClick={handleAddCategory}
+                className="bg-secondary hover:bg-blue-700 text-white px-6 rounded-xl font-medium transition-colors"
+              >
+                Add
+              </button>
             </div>
           </div>
 
-          {/* Event date */}
-          <input
-            type="date"
-            name="event_date"
-            value={formData.event_date}
-            onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl"
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Event Date */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <input
+                type="date"
+                name="event_date"
+                value={formData.event_date}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none"
+              />
+            </div>
 
-           <input
-            type="text"
-            name="duration"
-            placeholder="mm:ss (e.g. 05:30)"
-            value={formData.duration}
-            required
-            onChange={(e) => {
-              let value = e.target.value.replace(/[^0-9:]/g, '');
-
-              // Auto insert colon after 2 digits
-              if (value.length === 2 && !value.includes(':')) {
-                value = value + ':';
-              }
-
-              // Prevent more than mm:ss
-              if (value.length > 5) return;
-
-              setFormData(prev => ({ ...prev, duration: value }));
-            }}
-            className="px-4 py-3 border border-gray-300 rounded-xl"
-          />
+            {/* Duration Input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Duration <span className="text-gray-400 font-normal">(mm:ss)</span>
+              </label>
+              <input
+                type="text"
+                name="duration"
+                placeholder="05:30"
+                value={formData.duration}
+                required
+                onChange={handleDurationChange}
+                className={`w-full px-4 py-3 border rounded-xl outline-none transition-all ${
+                  durationError
+                    ? 'border-red-500 bg-red-50 text-red-900 focus:ring-red-200'
+                    : 'border-gray-300'
+                }`}
+              />
+              {durationError && (
+                <p className="text-red-500 text-xs mt-1.5 font-medium animate-pulse">
+                  {durationError}
+                </p>
+              )}
+            </div>
+          </div>
 
           {/* Speakers */}
-          <input
-            type="text"
-            name="speakers"
-            value={formData.speakers}
-            onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl"
-            placeholder="Comma-separated speakers"
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Speakers</label>
+            <input
+              type="text"
+              name="speakers"
+              value={formData.speakers}
+              onChange={handleChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl outline-none"
+              placeholder="e.g. John Doe, Jane Smith"
+            />
+          </div>
 
-          {/* Published */}
-          <label className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+          {/* Published Toggle */}
+          <label className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
             <input
               type="checkbox"
               name="published"
               checked={formData.published}
               onChange={handleChange}
+              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
             />
-            Published
+            <span className="font-medium text-gray-700">Published and visible to users</span>
           </label>
 
-          {/* Actions */}
-          <div className="flex gap-4">
+          {/* Action Buttons */}
+          <div className="flex gap-4 pt-4 border-t border-gray-100">
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 bg-secondary text-white py-3 rounded-xl disabled:opacity-50"
+              className="flex-1 bg-secondary hover:bg-secondary/70 text-white font-medium py-3.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
             >
-              {isLoading ? 'Updating…' : 'Update Audio'}
+              {isLoading ? 'Saving Changes...' : 'Update Teaching'}
             </button>
 
             <Link
               href="/teachings"
-              className="px-6 py-3 border border-gray-300 rounded-xl"
+              className="px-8 py-3.5 border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium rounded-xl transition-colors text-center"
             >
               Cancel
             </Link>
           </div>
-
         </div>
       </form>
     </div>
