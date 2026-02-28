@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 import { ArrowLeft, Upload } from 'lucide-react';
 import Link from 'next/link';
 
@@ -60,102 +60,105 @@ export default function NewTeachingPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setIsLoading(true);
+    e.preventDefault();
+    setIsLoading(true);
 
-  let categoryToSave = formData.category;
-  if (newCategory.trim()) {
-    categoryToSave = newCategory.trim();
-  }
+    let categoryToSave = newCategory.trim() || formData.category || null;
+    let uploadedFilePath: string | null = null; // Track path for cleanup
 
-  try {
-    // Basic validations
-    if (!formData.title.trim()) {
-      toast.error('Title is required');
-      setIsLoading(false);
-      return;
-    }
-
-    if (!audioFile && !formData.audio_url.trim()) {
-      toast.error('Audio file or audio URL is required');
-      setIsLoading(false);
-      return;
-    }
-
-    // Upload audio if selected
-    let audioUrl: string | null = null;
-    if (audioFile) {
-      const ext = audioFile.name.split('.').pop();
-      const fileName = (crypto?.randomUUID?.() || Date.now().toString()) + `.${ext}`;
-      const filePath = `teachings/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('audio-files')
-        .upload(filePath, audioFile, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error('Upload Error:', uploadError);
-        toast.error('Failed to upload audio');
+    try {
+      // 1. Basic validations
+      if (!formData.title.trim()) {
+        toast.error('Title is required');
         setIsLoading(false);
         return;
       }
 
-      const { data } = supabase.storage
-        .from('audio-files')
-        .getPublicUrl(filePath);
-
-      audioUrl = data.publicUrl;
-    }
-
-    // Parse speakers
-    const speakersArray = formData.speakers
-      ? formData.speakers.split(',').map(s => s.trim()).filter(Boolean)
-      : [];
-
-    // Parse duration safely
-    let durationSeconds: number | null = null;
-    if (formData.duration) {
-      const [min, sec] = formData.duration.split(':');
-      if (!min || !sec || isNaN(Number(min)) || isNaN(Number(sec))) {
-        toast.error('Duration must be in mm:ss format');
+      if (!audioFile && !formData.audio_url.trim()) {
+        toast.error('Audio file or audio URL is required');
         setIsLoading(false);
         return;
       }
-      durationSeconds = parseInt(min) * 60 + parseInt(sec.padStart(2, '0'));
-    }
 
-    // Insert into Supabase
-    const { error } = await supabase.from('audios').insert({
-      title: formData.title.trim(),
-      description: formData.description,
-      audio_url: audioUrl || formData.audio_url,
-      category: categoryToSave || null,
-      duration_seconds: durationSeconds,
-      event_date: formData.event_date || null,
-      speakers: speakersArray,
-      published: formData.published,
-    });
+      // 2. Upload audio if selected
+      let finalAudioUrl = formData.audio_url;
 
-    if (error) {
-      console.error('Insert Error:', error);
-      toast.error('Failed to create audio');
+      if (audioFile) {
+        const ext = audioFile.name.split('.').pop();
+        const fileName = `${crypto.randomUUID()}.${ext}`;
+        const filePath = `teachings/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('audio-files')
+          .upload(filePath, audioFile, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error('Failed to upload audio file');
+        }
+
+        // Store the path so we can delete it if the DB insert fails
+        uploadedFilePath = filePath;
+
+        const { data } = supabase.storage
+          .from('audio-files')
+          .getPublicUrl(filePath);
+
+        finalAudioUrl = data.publicUrl;
+      }
+
+      // 3. Parse auxiliary data
+      const speakersArray = formData.speakers
+        ? formData.speakers.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+
+      let durationSeconds: number | null = null;
+      if (formData.duration) {
+        const [min, sec] = formData.duration.split(':');
+        if (!min || !sec || isNaN(Number(min)) || isNaN(Number(sec))) {
+          throw new Error('Duration must be in mm:ss format');
+        }
+        durationSeconds = parseInt(min) * 60 + parseInt(sec);
+      }
+
+      // 4. Insert into Database
+      const { error: insertError } = await supabase.from('audios').insert({
+        title: formData.title.trim(),
+        description: formData.description,
+        audio_url: finalAudioUrl,
+        category: categoryToSave,
+        duration_seconds: durationSeconds,
+        event_date: formData.event_date || null,
+        speakers: speakersArray,
+        published: formData.published,
+      });
+
+      // 5. THE CLEANUP: If DB insert fails, delete the file we just uploaded
+      if (insertError) {
+        if (uploadedFilePath) {
+          await supabase.storage.from('audio-files').remove([uploadedFilePath]);
+          console.log('Cleanup: Deleted orphaned audio file from storage');
+        }
+        throw insertError;
+      }
+
+      toast.success('Audio created successfully!');
+      router.push('/teachings');
+
+    } catch (err: any) {
+      console.error('Submission Error:', err);
+      toast.error(err.message || 'An unexpected error occurred');
+      
+      // Safety fallback: ensure cleanup happens even on unexpected exceptions
+      if (uploadedFilePath) {
+        await supabase.storage.from('audio-files').remove([uploadedFilePath]);
+      }
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    toast.success('Audio created successfully!');
-    router.push('/teachings');
-
-  } catch (err: any) {
-    console.error('Unexpected Error:', err);
-    toast.error(err.message || 'An unexpected error occurred');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
 
   const handleAddCategory = async () => {
@@ -172,6 +175,7 @@ export default function NewTeachingPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      <Toaster position='top-right' />
       {/* Header */}
       <div className="mb-8">
         <Link

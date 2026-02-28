@@ -52,7 +52,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6">
-      <Toaster position='top-right'  />
+      <Toaster position='top-right' />
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -124,14 +124,14 @@ export default function LoginPage() {
           </form>
 
           {/* Divider */}
-          <div className="mt-6 text-center">
+          {/* <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
               <Link href="/register" className="text-secondary font-semibold hover:underline">
                 Contact Super Admin
               </Link>
             </p>
-          </div>
+          </div> */}
         </div>
 
         {/* Footer */}
