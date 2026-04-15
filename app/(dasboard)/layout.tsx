@@ -13,7 +13,8 @@ import {
   Megaphone,
   LogOut,
   Menu,
-  X
+  X,
+  Users
 } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -69,6 +70,7 @@ export default function DashboardLayout({
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Users', href: '/users', icon: Users },
     { name: 'Teachings', href: '/teachings', icon: Mic },
     { name: 'Events', href: '/events', icon: Calendar },
     { name: 'Daily Devotional', href: '/dose', icon: Book },

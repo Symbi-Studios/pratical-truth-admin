@@ -425,7 +425,7 @@ export default function DailyDosePage() {
 
         {/* Live Preview */}
         {formData.title && (
-          <div className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-2xl p-8 border-2 border-primary/20">
+          <div className="bg-linear-to-br from-primary/10 to-secondary/10 rounded-2xl p-8 border-2 border-primary/20">
             <div className="flex items-center gap-2 mb-4">
               <Eye className="w-5 h-5 text-gray-600" />
               <h3 className="text-lg font-bold text-gray-900">Live Preview</h3>
@@ -500,7 +500,7 @@ export default function DailyDosePage() {
         </div>
 
         {/* Devotional Content */}
-        <div className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-2xl p-8 border-2 border-primary/20">
+        <div className="bg-linear-to-br from-primary/10 to-secondary/10 rounded-2xl p-8 border-2 border-primary/20">
           <div className="bg-white rounded-xl p-8 space-y-6">
             <h2 className="text-3xl font-bold text-gray-900">{selectedDevo.title}</h2>
             <div className="border-l-4 border-primary pl-5">
