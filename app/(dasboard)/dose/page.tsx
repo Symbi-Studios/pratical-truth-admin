@@ -39,6 +39,8 @@ export default function DailyDosePage() {
     fetchAllDevotionals();
   }, []);
 
+  const localDate = new Date().toLocaleDateString('en-CA');
+
   const fetchAllDevotionals = async () => {
     setIsFetching(true);
     try {
@@ -388,14 +390,15 @@ export default function DailyDosePage() {
           {/* Affirmation */}
           <div>
             <label htmlFor="affirmation" className="block text-sm font-semibold text-gray-700 mb-2">Today's Task</label>
-            <input
-              type="text"
-              id="affirmation"
+            <textarea
+               id="affirmation"
               name="affirmation"
               value={formData.affirmation}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              placeholder="e.g., I trust God completely with my life"
+              required
+              rows={8}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
+              placeholder="Write the main devotional message..."
             />
           </div>
 
